@@ -153,9 +153,9 @@ def plot_reconstruction_comparison(
     vae_models: dict,
     dataset_path: str = DATASET_PATH,
 ):
-    """2 samples × 3 columns (Original, AE, VAE) for every class."""
+    """2 samples × 5 columns (Original, AE Latent, AE Recon, VAE Latent, VAE Recon) for every class."""
     num_classes = len(classes)
-    fig, axs = plt.subplots(num_classes * 2, 3, figsize=(15, 3 * num_classes * 2))
+    fig, axs = plt.subplots(num_classes * 2, 5, figsize=(20, 3 * num_classes * 2))
     plt.subplots_adjust(hspace=0.4)
 
     for i, region in enumerate(classes):
@@ -169,29 +169,46 @@ def plot_reconstruction_comparison(
             img = batch_imgs[j : j + 1]
             row_idx = i * 2 + j
 
-            ae_rec = ae_model(img, training=False)
-            _, _, z = v_enc.predict(img, verbose=0)
-            vae_rec = v_dec.predict(z, verbose=0)
+            # Extract latent representations
+            ae_latent = ae_model.encoder.predict(img, verbose=0)
+            ae_rec = ae_model.decoder.predict(ae_latent, verbose=0)
 
+            vae_latent, _, _ = v_enc.predict(img, verbose=0)
+            vae_rec = v_dec.predict(vae_latent, verbose=0)
+
+            # Determine shape for latent visualization
+            latent_dim = ae_latent.shape[1]
+            cols = int(np.ceil(np.sqrt(latent_dim)))
+            rows = int(np.ceil(latent_dim / cols))
+            
+            # Original
             axs[row_idx, 0].imshow(img[0, :, :, 0], cmap="gray")
             axs[row_idx, 0].set_title(f"{region} (Orig) #{j + 1}")
             axs[row_idx, 0].axis("off")
 
-            axs[row_idx, 1].imshow(ae_rec[0, :, :, 0], cmap="gray")
-            axs[row_idx, 1].set_title(f"{region} (AE)")
+            # AE Latent
+            padded_ae_latent = np.pad(ae_latent[0], (0, rows * cols - latent_dim))
+            axs[row_idx, 1].imshow(padded_ae_latent.reshape(rows, cols), cmap="viridis", interpolation='nearest')
+            axs[row_idx, 1].set_title(f"{region} (AE Latent)")
             axs[row_idx, 1].axis("off")
 
-            axs[row_idx, 2].imshow(vae_rec[0, :, :, 0], cmap="gray")
-            axs[row_idx, 2].set_title(f"{region} (VAE)")
+            # AE Reconstruction
+            axs[row_idx, 2].imshow(ae_rec[0, :, :, 0], cmap="gray")
+            axs[row_idx, 2].set_title(f"{region} (AE Recon)")
             axs[row_idx, 2].axis("off")
 
-    plt.suptitle("Reconstruction Comparison", fontsize=16)
-    plt.tight_layout()
-    plt.show()
+            # VAE Latent
+            padded_vae_latent = np.pad(vae_latent[0], (0, rows * cols - latent_dim))
+            axs[row_idx, 3].imshow(padded_vae_latent.reshape(rows, cols), cmap="viridis", interpolation='nearest')
+            axs[row_idx, 3].set_title(f"{region} (VAE Latent)")
+            axs[row_idx, 3].axis("off")
+
+            # VAE Reconstruction
+            axs[row_idx, 4].imshow(vae_rec[0, :, :, 0], cmap="gray")
+            axs[row_idx, 4].set_title(f"{region} (VAE Recon)")
+            axs[row_idx, 4].axis("off")
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-#  5. SAMPLE GENERATION FROM VAE
 # ═════════════════════════════════════════════════════════════════════════════
 
 def plot_generated_samples(
